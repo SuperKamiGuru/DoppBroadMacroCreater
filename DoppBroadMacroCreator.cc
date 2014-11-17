@@ -23,7 +23,7 @@ string ExtractString(std::stringstream &stream, char delim, int outType=7);
 void CropStream(std::stringstream& stream, int firstChar, int lastChar=0);
 void FindMaterialList(std::stringstream& stream, std::vector<string> &matNameList);
 void GetIsotopeList(std::stringstream& stream, std::vector<string> &matNameList, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, std::stringstream &original);
-bool FindConstructor(std::stringstream& stream, string name, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, string matType, double matTemp=0, std::stringstream *original=NULL);
+bool FindConstructor(std::stringstream& stream, string name, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, string matType, double matTemp=0, std::stringstream *original=NULL, bool matSet=false);
 double FindMatTemp(std::stringstream& stream, string matName, bool normal, std::stringstream *original=NULL);
 int FindElementList(std::stringstream& stream, string matName, std::vector<string> &matNameList, std::vector<string> &elemNameList, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, double matTemp);
 void FindIsotopeList(std::stringstream& stream, string elemName, std::vector<string> &elemNameList, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, double matTemp);
@@ -42,7 +42,7 @@ int main(int argc, char **argv)
     elementNames.SetElementNames();
     std::stringstream streamS, streamH;
     string macroFileName;
-    if(argc>=4)
+    if(argc>=4&&(floor(argc/2)==ceil(argc/2)))
     {
         outDirName = argv[1];
         for(int i = 2; i<argc; i+=2)
@@ -430,16 +430,18 @@ void GetIsotopeList(std::stringstream& stream, std::vector<string> &matNameList,
     std::vector<double> tempList;
     double matTemp;
     int initialSize = matNameList.size(), addMat;
+    bool matSet=false;
 
     for(int i=0; i<int(matNameList.size()); i++)
     {
-        if(FindConstructor(stream, matNameList[i], isoNameList, isoTempVec, "Material", matTemp, &original))
+        if(i>initialSize-1)
         {
-            if(i>initialSize-1)
-            {
-                matTemp=tempList[i-initialSize];
-            }
-            else
+            matSet=true;
+            matTemp=tempList[i-initialSize];
+        }
+        if(FindConstructor(stream, matNameList[i], isoNameList, isoTempVec, "Material", matTemp, &original, matSet))
+        {
+            if(!(i>initialSize-1))
             {
                 matTemp=FindMatTemp(stream, matNameList[i], true, &original );
             }
@@ -464,7 +466,8 @@ void GetIsotopeList(std::stringstream& stream, std::vector<string> &matNameList,
     }
 }
 
-bool FindConstructor(std::stringstream& stream, string name, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, string matType, double matTemp, std::stringstream *original)
+bool FindConstructor(std::stringstream& stream, string name, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, string matType,
+                    double matTemp, std::stringstream *original, bool matSet)
 {
     string check;
     std::stringstream line;
@@ -554,7 +557,8 @@ bool FindConstructor(std::stringstream& stream, string name, std::vector<string>
             else
             {
                 stream.seekg(pos1, std::ios::beg);
-                matTemp=FindMatTemp(stream, name, false, original);
+                if(!matSet)
+                    matTemp=FindMatTemp(stream, name, false, original);
                 stream.seekg(pos1, std::ios::beg);
                 GetAndAddIsotope(stream, isoNameList, isoTempVec, matTemp);
                 return false;
@@ -667,7 +671,10 @@ double FindMatTemp(std::stringstream& stream, string matName, bool normal, std::
             }
             else if(original!=NULL)
             {
-                findDouble(original, temp.str(), temperature);
+                if(!findDouble(original, temp.str(), temperature))
+                {
+                    cout << "\nError: couldn't find material temperature " << matName << endl;
+                }
             }
         }
         else
@@ -911,10 +918,6 @@ void FindIsotopeList(std::stringstream& stream, string elemName, std::vector<str
         stream.clear();
         stream.seekg(0, std::ios::beg);
     }
-    else
-    {
-        cout << "\nError: Could not find element constructor for " << elemName << endl;
-    }
 
     for(int i=0; i<int(isoObjectNameList.size()); i++)
     {
@@ -925,9 +928,14 @@ void FindIsotopeList(std::stringstream& stream, string elemName, std::vector<str
 
             GetAndAddIsotope(stream, isoNameList, isoTempVec, matTemp);
         }
+        else
+        {
+            cout << "\nError: couldn't fin isotope constructor for " << isoObjectNameList[i] << endl;
+        }
+        //I changed this check and make sure it still works
+        stream.clear();
+        stream.seekg(0, std::ios::beg);
     }
-    stream.clear();
-    stream.seekg(0, std::ios::beg);
 }
 
 void GetAndAddIsotope(std::stringstream& stream, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, double matTemp)
