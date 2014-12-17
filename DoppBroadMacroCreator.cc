@@ -42,17 +42,29 @@ int main(int argc, char **argv)
     elementNames.SetElementNames();
     std::stringstream streamS, streamH;
     string macroFileName;
+
+    //checks to make sure that number of arguments (including the program call) is equal to 4 or greater and that it is even
     if(argc>=4&&(floor(argc/2)==ceil(argc/2)))
     {
         outDirName = argv[1];
+
+        //loops through the given geometry source file, header file pairs and creates a macrofile (to be used by the dopplerbroadpara code) for each of them
         for(int i = 2; i<argc; i+=2)
         {
             geoFileSourceName = argv[i];
             geoFileHeaderName = argv[i+1];
+
+            // copies the data from the source and header file into a stringstream
             GetDataStream(geoFileSourceName, streamS);
             GetDataStream(geoFileHeaderName, streamH);
+
+            // Extracts the isotope names and temperatures used in the geometry and stores the information into the source stream
             FormatData(streamS, streamH);
+
+            // generates the name for the macrofile based off the given source file name and the output directory
             macroFileName = CreateMacroName(geoFileSourceName, outDirName);
+
+            //stores the information contianed in the source stream into the newly created macrofile
             SetDataStream( macroFileName, streamS);
         }
 
@@ -74,14 +86,19 @@ void GetDataStream( string geoFileName, std::stringstream& ss)
     std::ifstream thefData( geoFileName.c_str() , std::ios::in | std::ios::ate );
     if ( thefData.good() )
     {
+        // determines the size of the file in characters
         int file_size = thefData.tellg();
         thefData.seekg( 0 , std::ios::beg );
+
+        // creates a character array based off the size of the file
         char* filedata = new char[ file_size ];
         while ( thefData )
         {
+            // stores the file data into the character array
             thefData.read( filedata , file_size );
         }
         thefData.close();
+        // stores the character array into a string
         data = new string ( filedata , file_size );
         delete [] filedata;
     }
@@ -93,6 +110,7 @@ void GetDataStream( string geoFileName, std::stringstream& ss)
     }
     if (data != NULL)
     {
+        //stores the string into a stringstream
         ss.str(*data);
         if(data->back()!='\n')
             ss << "\n";
@@ -109,17 +127,26 @@ void FormatData(std::stringstream& stream, std::stringstream& stream2)
     std::vector<double> isoTempVec;
     std::stringstream original;
 
+    // combines the source file stream and the header file stream into one stream for advanced searching of variables
     original.str(stream2.str()+stream.str());
 
+    // searches throught the source stream for the ConstructMaterials() function and moves the file pointer past that position
     MovePastWord(stream, "::ConstructMaterials()");
     int pos = stream.tellg();
+
+    // removes the information in the source stream before the current position
     CropStream(stream, pos);
+
+    // finds the material map used in the geometry file and stores it into the matNameList vector
     FindMaterialList(stream, matNameList);
+
+    //Gets the isotope list using the matNameList and the source and the header stream
     GetIsotopeList(stream, matNameList, isoNameList, isoTempVec, original);
 
     stream.str("");
     stream.clear();
 
+    // prints a list of variables (that will determine what the doppler broadening program will do with the information) the user must fill in after the macrofile has been created
     stream << "(int: # of parameters)\n" << "(string: CS data input file or directory)\n" << "(string: CS data output file or directory)\n"
             << "(bool: use the file in the input directory with the closest temperature)\n" << "(double: use the file in the input directory with this temperature)\n"
             << "[Optional](string: choose either ascii or compressed for the output file type {Default=ascii})\n" << "[Optional](bool: create log file to show progress and errors {Default=false})\n"
@@ -127,6 +154,7 @@ void FormatData(std::stringstream& stream, std::stringstream& stream2)
             << "Fill in the above parameters and then delete this line before running.\n" << "The order of the parameters must be mantianed,\n"
             << "to enter an option the user must enter the previous options on the list \nleave the number at the bottom this is your # of isotopes\n\n";
 
+    // loops throught the isotope list and adds the
     for(int i=0; i<int(isoNameList.size()); i++)
     {
         stream.fill(' ');
@@ -134,6 +162,10 @@ void FormatData(std::stringstream& stream, std::stringstream& stream2)
     }
 }
 
+// MovePastWord
+// breaks up the given string into words then it searches throught the stream ignoring whitespace looking for match between the words extracted from the string and those in the stream
+// a match occurs when the stream has the words in the same order as they are in the string and without any words inbetween them
+// when a match is found the file pointer is set to the position just after the match and then the function returns true
 bool MovePastWord(std::stringstream& stream, string word)
 {
     std::vector<string> wordParts;
@@ -280,6 +312,9 @@ bool MovePastWord(std::stringstream& stream, string word)
     return check;
 }
 
+// ExtractString
+// starting from the current position in the stream the function looks through the stream character by character checking if it meets the given format
+// and if so adding it to a string which is returned when the delimeter is found
 string ExtractString(std::stringstream &stream, char delim, int outType)
 {
     string value="";
@@ -371,6 +406,8 @@ string ExtractString(std::stringstream &stream, char delim, int outType)
     return value;
 }
 
+// CropStream
+// overwirtes the given stream with the data between the given firstchar and last char of the stream
 void CropStream(std::stringstream& stream, int firstChar, int lastChar)
 {
     if(lastChar==0)
@@ -397,6 +434,8 @@ void CropStream(std::stringstream& stream, int firstChar, int lastChar)
     delete filedata;
 }
 
+//FindMaterialList
+//Gets the G4Material objects stroed in the material map
 void FindMaterialList(std::stringstream& stream, std::vector<string> &matNameList)
 {
     string name="";
@@ -424,6 +463,9 @@ void FindMaterialList(std::stringstream& stream, std::vector<string> &matNameLis
     stream.seekg(0, std::ios::beg);
 }
 
+//GetIsotopeList
+//takes in a data stream and a material name list and it searches the data stream for the isotopes that make up the material and their respective temperatures
+//then it outputs the information into a list of isotope names and a list of isotope temperatures
 void GetIsotopeList(std::stringstream& stream, std::vector<string> &matNameList, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, std::stringstream &original)
 {
     std::vector<string> elemNameList;
@@ -434,18 +476,23 @@ void GetIsotopeList(std::stringstream& stream, std::vector<string> &matNameList,
 
     for(int i=0; i<int(matNameList.size()); i++)
     {
+        //if the matNameList has been extended due to AddMaterial() being used in the geometry file use the material temperatures stored in the templist
         if(i>initialSize-1)
         {
             matSet=true;
             matTemp=tempList[i-initialSize];
         }
+
+        // find the constructor of the material object in the data stream
         if(FindConstructor(stream, matNameList[i], isoNameList, isoTempVec, "Material", matTemp, &original, matSet))
         {
+            //if this material is not part of another material, find the temperature of the material
             if(!(i>initialSize-1))
             {
                 matTemp=FindMatTemp(stream, matNameList[i], true, &original );
             }
 
+            //find the G4Element objects that make up this material and if any materials are used to create the current material added them to the templist
             addMat=FindElementList(stream, matNameList[i], matNameList, elemNameList, isoNameList, isoTempVec, matTemp);
             while(addMat>0)
             {
@@ -453,6 +500,7 @@ void GetIsotopeList(std::stringstream& stream, std::vector<string> &matNameList,
                 addMat--;
             }
 
+            //find the isotopes used to construct each element
             for(int j=0; j<int(elemNameList.size()); j++)
             {
                 FindIsotopeList(stream, elemNameList[j], elemNameList, isoNameList, isoTempVec, matTemp);
@@ -466,6 +514,8 @@ void GetIsotopeList(std::stringstream& stream, std::vector<string> &matNameList,
     }
 }
 
+//FindConstructor
+//searches the data stream for the constructor of the given object
 bool FindConstructor(std::stringstream& stream, string name, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, string matType,
                     double matTemp, std::stringstream *original, bool matSet)
 {
@@ -596,6 +646,8 @@ bool FindConstructor(std::stringstream& stream, string name, std::vector<string>
     }
 }
 
+// FindMatTemp
+//finds the temperature of the given material in the data stream
 double FindMatTemp(std::stringstream& stream, string matName, bool normal, std::stringstream *original)
 {
     int count=0, limit;
@@ -686,6 +738,8 @@ double FindMatTemp(std::stringstream& stream, string matName, bool normal, std::
     return temperature;
 }
 
+//findDouble
+//finds the value stored in the given variable
 bool findDouble(std::stringstream *stream, string variable, double &temperature)
 {
     bool arrayElem=false, number=false, celsius=false, first=true;
@@ -794,6 +848,8 @@ bool findDouble(std::stringstream *stream, string variable, double &temperature)
     return true;
 }
 
+//FindElementList
+//Finds the elements used to create the given material
 int FindElementList(std::stringstream& stream, string matName, std::vector<string> &matNameList, std::vector<string> &elemNameList, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, double matTemp)
 {
     string name="";
@@ -858,6 +914,8 @@ int FindElementList(std::stringstream& stream, string matName, std::vector<strin
     return addMat;
 }
 
+// FindIsotopeList
+// finds the isotopes used to create the given element
 void FindIsotopeList(std::stringstream& stream, string elemName, std::vector<string> &elemNameList, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, double matTemp)
 {
     std::vector<string> isoObjectNameList;
@@ -938,6 +996,8 @@ void FindIsotopeList(std::stringstream& stream, string elemName, std::vector<str
     }
 }
 
+//GetAndAddIsotope
+//finds the isotope object, gets the isotope name,  adds it to the isoNameList along, and then it adds the material temperature to the isotope name list
 void GetAndAddIsotope(std::stringstream& stream, std::vector<string> &isoNameList, std::vector<double> &isoTempVec, double matTemp)
 {
     std::stringstream isoName;
@@ -975,6 +1035,8 @@ void GetAndAddIsotope(std::stringstream& stream, std::vector<string> &isoNameLis
     isoName.clear();
 }
 
+//CreateMacroName
+//Generates the name for the macro file based off the geometry file name and the output directory
 string CreateMacroName(string geoFileName, string outDirName)
 {
     if((geoFileName.substr(geoFileName.length()-3,3))==".cc")
@@ -1000,6 +1062,8 @@ string CreateMacroName(string geoFileName, string outDirName)
     return (outDirName+"DoppBroadMacro"+geoFileName.substr(pos, pos2-pos)+".txt");
 }
 
+//SetDataStream
+//opens the file with the given name and stores the information contianed by the data stream inside of it
 void SetDataStream( string macroFileName, std::stringstream& ss)
 {
   std::ofstream out( macroFileName.c_str() , std::ios::out | std::ios::trunc );
