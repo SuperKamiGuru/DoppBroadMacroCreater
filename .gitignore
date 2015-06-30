@@ -1,0 +1,6 @@
+.gitignore~
+DoppBroadMacroCreater.cbp
+DoppBroadMacroCreater.depend
+DoppBroadMacroCreater.layout
+bin/
+obj/
